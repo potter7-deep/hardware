@@ -8,7 +8,7 @@ const MPESA_CONFIG = {
   consumerSecret: process.env.MPESA_CONSUMER_SECRET || 'your_consumer_secret',
   shortCode: process.env.MPESA_SHORT_CODE || '174379',
   passkey: process.env.MPESA_PASSKEY || 'your_passkey',
-  callbackUrl: process.env.MPESA_CALLBACK_URL || 'https://your-domain.com/api/mpesa/callback',
+  callbackUrl: process.env.MPESA_CALLBACK_URL || 'https://modern-hardware-app.onrender.com/api/mpesa/callback',
   environment: process.env.MPESA_ENVIRONMENT || 'sandbox'
 };
 
@@ -42,14 +42,23 @@ const getAccessToken = async () => {
   }
 };
 
-// STK Push Simulation (for demo purposes)
-// In production, this would call the actual M-Pesa API
+// STK Push - Real M-Pesa API Call
 export const initiateSTKPush = async (phone, amount, orderId) => {
   try {
-    // For demo: simulate STK push
-    // In production, uncomment the actual API call below
-    
-    /*
+    // Validate phone number - must be in format 254XXXXXXXXX
+    let formattedPhone = phone.replace(/[^0-9]/g, '');
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = '254' + formattedPhone.substring(1);
+    } else if (!formattedPhone.startsWith('254')) {
+      formattedPhone = '254' + formattedPhone;
+    }
+
+    // Validate amount
+    const validAmount = Math.ceil(amount);
+    if (validAmount < 1) {
+      throw new Error('Amount must be at least 1 KES');
+    }
+
     const accessToken = await getAccessToken();
     const { password, timestamp } = generateMpesaPassword();
     
@@ -58,14 +67,16 @@ export const initiateSTKPush = async (phone, amount, orderId) => {
       Password: password,
       Timestamp: timestamp,
       TransactionType: 'CustomerBuyGoodsOnline',
-      Amount: Math.ceil(amount),
-      PartyA: phone.replace(/^254/, ''),
+      Amount: validAmount,
+      PartyA: formattedPhone,
       PartyB: MPESA_CONFIG.shortCode,
-      PhoneNumber: phone.replace(/^254/, ''),
+      PhoneNumber: formattedPhone,
       CallBackURL: MPESA_CONFIG.callbackUrl,
       AccountReference: `MH${orderId}`,
       TransactionDesc: 'Modern Hardware Payment'
     };
+    
+    console.log('Initiating STK Push:', { phone: formattedPhone, amount: validAmount, orderId });
     
     const response = await axios.post(
       `${MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest`,
@@ -78,17 +89,9 @@ export const initiateSTKPush = async (phone, amount, orderId) => {
       }
     );
     
-    return {
-      success: true,
-      checkoutRequestId: response.data.CheckoutRequestID,
-      merchantRequestId: response.data.MerchantRequestID
-    };
-    */
-   
-    // Demo simulation
-    const checkoutRequestId = `DEMO_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log('STK Push Response:', response.data);
     
-    // Store the pending transaction
+    // Update order payment status
     db.prepare(`
       UPDATE orders 
       SET payment_method = 'mpesa', payment_status = 'pending'
@@ -97,15 +100,15 @@ export const initiateSTKPush = async (phone, amount, orderId) => {
     
     return {
       success: true,
-      checkoutRequestId,
-      merchantRequestId: `DEMO_MRI_${Date.now()}`,
+      checkoutRequestId: response.data.CheckoutRequestID,
+      merchantRequestId: response.data.MerchantRequestID,
       message: 'STK Push initiated. Please complete payment on your phone.'
     };
   } catch (error) {
-    console.error('STK Push error:', error);
+    console.error('STK Push error:', error.response?.data || error.message);
     return {
       success: false,
-      error: error.message || 'Failed to initiate payment'
+      error: error.response?.data?.errorMessage || error.message || 'Failed to initiate payment'
     };
   }
 };
