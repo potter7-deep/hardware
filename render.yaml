@@ -3,8 +3,8 @@ services:
     name: modern-hardware
     env: node
     region: oregon
-    buildCommand: npm install --prefix frontend && npm install --prefix backend && npm run build --prefix frontend
-    startCommand: npm start --prefix backend
+    buildCommand: cd frontend && npm install && cd ../backend && npm install && cd ../frontend && npx vite build
+    startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV
         value: production
