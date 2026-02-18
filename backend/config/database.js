@@ -70,5 +70,22 @@ db.exec(`
   );
 `);
 
+// Database migrations - add missing columns to existing tables
+try {
+  db.exec(`
+    ALTER TABLE orders ADD COLUMN payment_method TEXT DEFAULT 'cod';
+  `);
+} catch (e) {
+  // Column already exists, ignore error
+}
+
+try {
+  db.exec(`
+    ALTER TABLE orders ADD COLUMN mpesa_receipt TEXT;
+  `);
+} catch (e) {
+  // Column already exists, ignore error
+}
+
 export default db;
 
